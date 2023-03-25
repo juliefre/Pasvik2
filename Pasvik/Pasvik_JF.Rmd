@@ -1,0 +1,363 @@
+---
+title: "Pasvik"
+author: "Julie"
+date: "2023-02-23"
+output: html_document
+---
+
+# Install and load libraries
+
+```{r}
+install.packages("tidyverse")
+install.packages("lubridate")
+library(tidyverse)
+install.packages("janitor")
+install.packages("lme4")
+install.packages("vegan")
+library(ggplot2)
+install.packages("stats")
+install.packages("Stan")
+library(Stan)
+install.packages("rstanarm")
+install.packages("brms")
+library(brms)
+```
+
+#Load data
+
+```{r}
+
+data<- read.csv2("C:/Users/rubkw/OneDrive/Skrivebord/Pasvik/Raw_data/Pasvik_total_stomach.csv")
+data_total <- read.csv2("C:/Users/rubkw/OneDrive/Skrivebord/Pasvik/csv_data/Pasvik_perch_total.csv")
+```
+
+# Clean data
+
+```{r}
+data_mercury <-data %>% 
+  janitor::clean_names() 
+View(data)
+data_clean <- data_total %>% 
+  janitor:: clean_names() 
+```
+
+# Stomach content
+
+```{r}
+data_stomach <- data_clean %>% 
+  select(c(locality, nr, vekt, lencm, age,fg:uid)) %>% 
+  pivot_longer(col=c(fg:uid)) %>% 
+  mutate(value=replace_na(value,0)) %>%
+  pivot_wider(names_from = "name",values_from = "value") %>% 
+  pivot_longer(col=c(fisk_uid:ni_ye)) %>% 
+  mutate(piscivorous=if_else(value>0,1,0)) %>% 
+  pivot_wider(names_from = "name",values_from = "value")
+View(data_stomach)
+summary(data_stomach)
+```
+
+# Mercury
+
+plot for å få ut figuren
+
+```{r}
+plot <- data_clean %>% 
+  ggplot(aes(x=vekt,y=log10mhg_dry, color=locality))+
+  guides(colour=guide_legend(title="Locality"))+
+  labs(y="LogHg", x="Weight(g)", title = "LogHg per weight")+
+  geom_point()+
+  geom_smooth()
+  
+plot
+plot <- data_clean %>% 
+  filter(kond<10) %>% 
+  ggplot(aes(x=kond,y=mhg_wet1, color=locality))+
+  guides(colour=guide_legend(title=))+
+  labs(y="mHgwet", x="Kond")+
+  geom_point()+
+  geom_smooth()
+
+plot
+
+View(data)
+names(data_total)
+```
+
+# Logistic regression
+
+```{r}
+data_stomach
+str(data_stomach)
+data_stomach$piscivorous <- as.factor(data_stomach$piscivorous)
+str(data_stomach)
+#divide in toVaggatem and Skrukkebukta
+data_stomach_sb <- data_stomach %>% 
+  filter(locality=="Skrukkebukta")
+data_stomach_v <-  data_stomach %>% 
+  filter(locality=="Vaggatem")
+
+logistic1 <- glm(piscivorous~lencm+age, data=data_stomach, family="binomial")
+?glm
+summary(logistic1)
+
+logistic1
+logistic2
+
+table(data_stomach$piscivorous)
+glm(piscivorous~lencm+age,
+    data=data_stomach)
+
+logistic2 <- glm(piscivorous~lencm, data=data_stomach, family="binomial")
+logistic3 <- glm(piscivorous~age, data=data_stomach, family="binomial")
+
+summary(logistic3)
+summary(logistic2)
+plot(logistic1)
+plot(logistic2)
+anova(logistic1, logistic2)
+summary(anova(logistic1,logistic2))
+logistic4 <- glm(piscivorous~vekt, data=data_stomach, family="binomial")
+summary(logistic4)
+
+head(logistic1)
+str(data_stomach)
+
+#glm for Vaggatem and Skrukkebukt separat
+logistic5 <- glm(piscivorous~lencm+age, data=data_stomach_sb, family = "binomial")
+logistic6 <- glm(piscivorous~lencm+age, data=data_stomach_v, family="binomial")
+logistic7 <- glm(piscivorous~lencm, data=data_stomach_sb, family = "binomial")
+logistic8<- glm(piscivorous~lencm, data=data_stomach_v, family = "binomial")
+
+#GGplot
+obs_data_l5 <- data.frame(piscivorous=data_stomach_sb$piscivorous,
+                        lencm=data_stomach_sb$lencm,
+                        age=data_stomach_sb$age)
+obs_data_l5$predicted <- predict(logistic5,newdata = data_stomach_sb)
+
+glm_sb <- ggplot(obs_data_l5, aes(x=lencm,y=piscivorous))+
+  geom_point()+
+  geom_line(aes(y=predicted))+
+  labs(x="Length (cm)",y="Piscivorous",
+       title="GLM: Piscivorous vs. Length and Age")
+glm_sb
+
+obs_data_l7 <- data.frame(piscivorous=data_stomach_sb$piscivorous,
+                        lencm=data_stomach_sb$lencm)
+obs_data_l7$predicted <- predict(logistic5,newdata = data_stomach_sb)
+glm_obs_l7 <- ggplot(obs_data_l7,aes(x=lencm,y=piscivorous))+
+  geom_point()+
+  geom_line(aes(y=predicted))+
+  labs(x="Length(cm)",y="Piscivorous",
+       title="GLM: Piscivorous vs. Length")
+obs_data_l7
+
+logistic9 <- glm(piscivorous~lencm+vekt,data=data_stomach_sb, family=binomial())
+obsl9 <- data.frame(lencm=seq(min(data_stomach_sb$lencm),max(data_stomach_sb$lencm)
+                              vekt=seq(min(data_stomach_sb$vekt),max(data_stomach_sb$vekt)
+obsl9$predicted <- predict(logistic9, newdata=data_stomach_sb,type="response")
+```
+
+#test
+```{r}
+perch_df <- mutate(data_stomach, batch=factor(piscivorous))
+
+```
+
+
+#Linear regression 
+```{r}
+#Fit a linear regression model of length on d13C and d15N
+#Skrukkebukta
+model_length_sb <- lm(LENCM~d13C+d15N,data=data_SB)
+summary(model_length_sb)
+model_length_sb
+
+model_weight_sb <- lm(VEKT~d13C+d15N,data=data_SB)
+summary(model_weight_sb)
+
+#Vaggatem
+model_length_v <- lm(LENCM~d13C+d15N,data=data_V)
+summary(model_length_v)
+model_length_v
+
+model_weight_v <- lm(VEKT~d13C+d15N,data=data_V)
+summary(model_weight_v)
+```
+#Baraysian model
+```{r}
+
+```
+
+
+# CCA plot
+
+```{r}
+install.packages("vegan")
+library(vegan)
+library(tidyverse)
+data <- read.csv2("C:/Users/rubkw/OneDrive/Skrivebord/Pasvik/csv_data/main_diet_groups.csv")
+data_ca <- data %>% 
+  select(Zooplankton:Uid...Annet)
+diet_ca <- cca(data_ca)
+plot(diet_ca) 
+
+diet_ca2 <- cca(data_ca~ï..Lokalitet+Lengdegruppe,data=data)
+diet_ca2 
+
+diet_ca_locality <-cca(data_ca~ï..Lokalitet,data=data)
+diet_ca_locality
+
+diet_ca_lengthgroup<- cca(data_ca~Lengdegruppe, data=data)
+diet_ca_lengthgroup
+
+anova(diet_ca_lengthgroup)
+anova(diet_ca_locality)
+
+diet_ca
+0.6027/1.342
+0.3367/1.342
+0.1901/1.342
+0.1061/1.342
+
+#Gjør det samme for data som ikke inneholder uid
+dietdata <- read.csv2("C:/Users/rubkw/OneDrive/Skrivebord/Pasvik/csv_data/diet_groups.csv")
+data_ca <- dietdata %>% 
+  select(Zooplankton:Pike)
+diet_ca <- cca(data_ca)
+plot(diet_ca)
+
+#forsøk 2 
+data_ca <- dietdata %>% 
+  select(Zooplankton:Pike) %>% 
+  scale()
+
+#Linear model stable isotopes
+
+```
+
+# Stable isotopes
+
+```{r}
+
+#for length 
+names(data_total)
+colnames(data_total)[70] <- "d13C"
+colnames(data_total)[71] <- "d15N"
+colnames(data_total)[1] <- "locality"
+isotopeslength <- data_total %>% 
+  ggplot(aes(x=d13C,y=d15N, color=LENCM))+
+  guides(colour=guide_legend(title="Length(cm)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes")+
+  geom_point()+
+  geom_smooth()+
+  scale_fill_brewer(palette = "Dark2")
+isotopeslength
+
+library(RColorBrewer)
+display.brewer.all(colorblindFriendly = TRUE)
+
+#not working when trying to add scale_color_manual(values=c("#999","#F0E","#CC7")) or 
+#scale_fill_brewer(palette = "Dark2"). Colors do not show up 
+
+#for weight
+isotopesweight <- data_total %>% 
+  ggplot(aes(x=d13C,y=d15N, color=VEKT))+
+  guides(colour=guide_legend(title="Weight(g)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes")+
+  geom_point()+
+  geom_smooth()+
+  scale_fill_manual(values = c("lightblue","lightpink","orange"))
+isotopesweight
+
+#Filter data by location
+data_SB <- data_total %>% 
+  filter(locality=="Skrukkebukta")
+
+data_V <- data_total %>% 
+  filter(locality=="Vaggatem")
+
+#Weight and length Skrukkebukta
+isotopesweight_SB <- data_SB %>% 
+  ggplot(aes(x=d13C,y=d15N, color=VEKT))+
+  guides(colour=guide_legend(title="Weight(g)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes Skrukkebukta")+
+  geom_point()+
+  scale_color_gradient(breaks=c(100,200,300,400,500,600),
+                       guide = guide_colorbar(barwidth = 20))+
+  geom_smooth()
+
+isotopesweight_SB
+
+isotopeslength_SB <- data_SB %>% 
+  ggplot(aes(x=d13C,y=d15N, color=LENCM))+
+  guides(colour=guide_legend(title="Length(cm)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes Skrukkebukta")+
+  geom_point()+
+  scale_color_gradient(breaks=c(10,15,20,25,30),
+                       guide = guide_colorbar(barwidth = 20))+
+  geom_smooth()
+isotopeslength_SB 
+
+#Weight and length Vaggatem
+#Weight and length Skrukkebukta
+isotopesweight_V <- data_V %>% 
+  ggplot(aes(x=d13C,y=d15N, color=VEKT))+
+  guides(colour=guide_legend(title="Weight(g)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes Vaggatem")+
+  geom_point()+
+  scale_color_gradient(breaks=c(100,200,300,400,500,600),
+                       guide = guide_colorbar(barwidth = 20))+
+  geom_smooth()
+
+isotopesweight_V
+
+isotopeslength_V <- data_V %>% 
+  ggplot(aes(x=d13C,y=d15N, color=LENCM))+
+  guides(colour=guide_legend(title="Length(cm)"))+
+  theme(legend.position = "top")+
+  labs(y="d15N", x="d13C", title = "Stable isotopes Vaggatem")+
+  geom_point()+
+  scale_color_gradient(breaks=c(10,15,20,25,30),
+                       guide = guide_colorbar(barwidth = 20))+
+  geom_smooth()
+isotopeslength_V  
+
+#Combine the data from the two locations
+#Weight
+isotopesweight_faceted <- ggplot()+
+  geom_point(data=data_SB, aes(x=d13C,y=d15N,color=VEKT))+
+  geom_smooth(data=data_SB,aes(x=d13C,y=d15N,color=VEKT))+
+  geom_point(data=data_V,aes(x=d13C,y=d15N,color=VEKT))+
+  geom_smooth(data=data_V,aes(x=d13C,y=d15N,color=VEKT))+
+   scale_color_gradient(breaks=c(100,200,300,400,500,600),
+                       guide = guide_colorbar(barwidth = 20))+
+  labs(y="d15N",x="d13C",title="Stable isotopes")+
+  facet_grid(.~locality,scales="free")+
+  guides(color=guide_legend(title = "Weight(g)"))+
+  theme(legend.position = "top")
+
+isotopesweight_faceted
+
+#length
+isotopeslength_faceted <- ggplot()+
+  geom_point(data=data_SB, aes(x=d13C,y=d15N,color=LENCM,))+
+  geom_smooth(data=data_SB,aes(x=d13C,y=d15N,color=LENCM))+
+  geom_point(data=data_V,aes(x=d13C,y=d15N,color=LENCM))+
+  geom_smooth(data=data_V,aes(x=d13C,y=d15N,color=LENCM))+
+  scale_color_gradient(breaks=c(10,15,20,25,30),
+                       guide = guide_colorbar(barwidth = 20))+ 
+  labs(y="d15N",x="d13C",title="Stable isotopes")+
+  facet_grid(.~locality,scales="free")+
+  guides(color=guide_legend(title = "Length(cm)"))+
+  theme(legend.position = "top")
+
+isotopeslength_faceted 
+#Tried to add scale_color_gradient to change the breaks for color but 
+#then it dissapears? Tried using guide to place it back but still not working
+
+```
